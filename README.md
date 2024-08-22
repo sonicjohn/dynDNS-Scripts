@@ -18,11 +18,6 @@ This is implemented using a single small script for simplicity. There is a versi
    -if not, check again until TTL has been reached, then notify via email
 ```
 
-## To run
-Keep this script on a cron job running every few hours or so. For my use case an immediate change was not necessary-- it's just so I don't get locked out of my home network for not knowing the IP address.
-
-\* */3 * * * /\<path to project\>/dynDNS-Scripts/dynDNS-Route53.py > /dev/null 2>&1
-
 ## To install
 Place script on an internal Linux server and adjust values as follows:
 
@@ -35,5 +30,10 @@ Place script on an internal Linux server and adjust values as follows:
     -NOTE: for the GoDaddy version, update the values directly in the script
 -you also have the option to create these as environment variables and skip using config.ini (Route53 version only)
 ```
+
+## To run
+Keep this script on a cron job running every few hours or so. For my use case an immediate change was not necessary-- it's just so I don't get locked out of my home network for not knowing the IP address.
+
+\* */3 * * * /\<path to project\>/dynDNS-Scripts/dynDNS-Route53.py > /dev/null 2>&1
 
 TODO: Create better support and error handling for environment variables
