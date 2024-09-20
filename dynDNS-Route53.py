@@ -33,11 +33,12 @@ import boto3
 
 
 #
-# User-entered variables
+# Setup
 #
 
 configs_dict = {}
-
+script_cwd = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_cwd)
 
 #
 # Function definitions
