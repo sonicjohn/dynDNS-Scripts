@@ -60,7 +60,7 @@ def load_config():
             configs_dict['aws_access_key_id'] = os.environ['AWS_ACCESS_KEY_ID']
             configs_dict['aws_secret_access_key'] = os.environ['AWS_ACCESS_SECRET_KEY']
             configs_dict['check_url'] = os.environ['CHECK_URL']
-            configs_dict['NOTIFY_EMAIL'] = os.environ['NOTIFY_EMAIL']
+            configs_dict['notify_email'] = os.environ['NOTIFY_EMAIL']
 
 
 def get_current_ip():
@@ -129,7 +129,7 @@ def is_proc_running(name):
         for subname in p.info['cmdline']:
             if name in subname:
                 procs.append(p)
-            if len(procs) > 1:
+            if len(procs) > 2: # 2 if running via cron, 1 otherwise
                 return True
 
     return False
@@ -169,7 +169,7 @@ def main():
         else:
             quit()
     #print("at the end, and vars are", get_dns_ip(), current_ip) # debug
-    msg = '''echo "An IP address appears to have changed, but there was an issue with updating it. The new IP address appears to be {c}. Thank you." | mail -s "DDNS Error" {n}'''.format(c = current_ip, n = configs_dict[notify_email])
+    msg = '''echo "An IP address appears to have changed, but there was an issue with updating it. The new IP address appears to be {c}. Thank you." | mail -s "DDNS Error" {n}'''.format(c = current_ip, n = configs_dict['notify_email'])
     os.system(msg)
 
 

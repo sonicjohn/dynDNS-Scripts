@@ -98,7 +98,7 @@ def is_proc_running(name):
         for subname in p.info['cmdline']:
             if name in subname:
                 procs.append(p)
-            if len(procs) > 1:
+            if len(procs) > 2: # 2 if running via cron, 1 otherwise
                 return True
 
     return False
