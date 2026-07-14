@@ -1,4 +1,5 @@
-#! /usr/bin/env python3
+#! /usr/bin/env /bin/python3.14
+# boto3 requires a recent version of python 3
 '''
 Description of this script:
 
@@ -23,8 +24,10 @@ User Instructions:
 '''
 
 import os
+import shutil
+from datetime import datetime
 import requests
-import json
+import subprocess
 import psutil
 import socket
 import time
@@ -62,24 +65,26 @@ def load_config():
             configs_dict['check_url'] = os.environ['CHECK_URL']
             configs_dict['notify_email'] = os.environ['NOTIFY_EMAIL']
 
-
 def get_current_ip():
     '''
     This function will return the current external IP.
     '''
-    response = requests.get(configs_dict['check_url'])
+    try:
+        response = requests.get(configs_dict['check_url'], timeout=15)
+    except requests.RequestException:
+        return None
     if response.status_code == 200:
         return response.text.strip('\n')
-    else:
-        return None
-
+    return None
 
 def get_dns_ip():
     '''
     This function will return the current IP set in the 'home' record.
     '''
-    return socket.gethostbyname(configs_dict['domain'])
-
+    try:
+        return socket.gethostbyname(configs_dict['domain'])
+    except socket.gaierror:
+        return None
 
 def update_dns_ip(current_ip, dns_ip):
     '''
@@ -134,11 +139,46 @@ def is_proc_running(name):
 
     return False
 
+def find_sendmail():
+    '''Return the path to a sendmail binary, or None if not found.'''
+    found = shutil.which('sendmail')
+    if found:
+        return found
+    for path in ('/usr/sbin/sendmail', '/usr/lib/sendmail'):
+        if os.access(path, os.X_OK):
+            return path
+    return None
+
+def notify_by_mail(subject, body):
+    '''Send a notification email if a sendmail binary exists. Returns True if handed off.'''
+    sendmail = find_sendmail()
+    if sendmail is None:
+        return False
+
+    recipient = configs_dict['notify_email']
+    message = 'To: {r}\nSubject: {s}\n\n{b}\n'.format(r=recipient, s=subject, b=body)
+
+    try:
+        subprocess.run(
+            [sendmail, '-t'],
+            input=message.encode(),
+            check=True,
+            timeout=30
+        )
+        return True
+    except (subprocess.SubprocessError, OSError):
+        return False
+
 def main():
     load_config()
     
     current_ip = get_current_ip()
     #print("current ip is", current_ip) # debug
+    
+    if current_ip is None:
+        print('{t}: Could not determine external IP; skipping this run.'.format(
+            t=datetime.now().strftime('%Y-%m-%d %H:%M:%S')))
+        quit()
     
     dns_ip = get_dns_ip()
     #print("DNS ip is", dns_ip) # debug
@@ -147,6 +187,9 @@ def main():
     #print("current process name is", current_process_name) # debug
 
     if current_ip == dns_ip:
+        # Stdout is designed to be redirected to a log file here.
+        print('{t}: No change detected; IP is still {c}.'.format(
+            t=datetime.now().strftime('%Y-%m-%d %H:%M:%S'), c=current_ip))
         quit()
 
     if is_proc_running(current_process_name):
@@ -163,15 +206,24 @@ def main():
             retries = dns_check_timeout // 10
     else:
         retries = 2
+    updated = False
     for n in range(retries):
         if get_dns_ip() != current_ip:
             time.sleep(10)
         else:
-            quit()
-    #print("at the end, and vars are", get_dns_ip(), current_ip) # debug
-    msg = '''echo "An IP address appears to have changed, but there was an issue with updating it. The new IP address appears to be {c}. Thank you." | mail -s "DDNS Error" {n}'''.format(c = current_ip, n = configs_dict['notify_email'])
-    os.system(msg)
-
+            updated = True
+            break
+    if updated:
+        body = ('The external IP address changed from {o} to {c}, and the '
+                'DNS record was updated successfully.'.format(o=dns_ip, c=current_ip))
+        if not notify_by_mail('DDNS Updated: {d}'.format(d=configs_dict['domain']), body):
+            print('IP changed to', current_ip, 'and DNS was updated; no mail client available to notify.')
+    else:
+        body = ('An IP address appears to have changed, but there was an issue '
+                'with updating it. The old address was {o}, and the new IP '
+                'address appears to be {c}. Thank you.'.format(o=dns_ip, c=current_ip))
+        if not notify_by_mail('DDNS Error: {d}'.format(d=configs_dict['domain']), body):
+            print('DDNS update failed and no mail client available; new IP is', current_ip)
 
 #
 # Run
